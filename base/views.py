@@ -1,11 +1,18 @@
 from django.shortcuts import render, redirect
-from .models import Room
+from django.db.models import Q
+from .models import Room, Topic
 from .forms import RoomForm
 
+
 def home(request):
-    rooms = Room.objects.all()
+    q = request.GET.get('q') if request.GET.get('q') != None else ''
+    rooms = Room.objects.filter(Q(topic__name__icontains=q) | Q(name__icontains=q) | Q(description__icontains=q))
+    room_count = rooms.count()
+    topics = Topic.objects.all()
     context = {
-        'rooms': rooms
+        'rooms': rooms,
+        'topics': topics,
+        'room_count': room_count
     }
     return render(request, 'base/home.html', context)
 
@@ -17,6 +24,7 @@ def room(request, pk):
     }
     return render(request, 'base/room.html', context)
 
+
 def createRoom(request):
     form = RoomForm()
     if request.method == 'POST':
@@ -26,6 +34,7 @@ def createRoom(request):
             return redirect('home')
     context = {'form': form}
     return render(request, 'base/room_form.html', context)
+
 
 def updateRoom(request, pk):
     room = Room.objects.get(id=pk)
@@ -37,6 +46,7 @@ def updateRoom(request, pk):
             return redirect('home')
     context = {'form': form}
     return render(request, 'base/room_form.html', context)
+
 
 def deleteRoom(request, pk):
     room = Room.objects.get(id=pk)

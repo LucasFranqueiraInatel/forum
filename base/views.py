@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
-from .models import Room, Topic
+from .models import Room, Topic, Message
 from .forms import RoomForm
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
@@ -41,7 +41,7 @@ def registerPage(request):
 
     if request.user.is_authenticated:
         return redirect('home')
-    
+
     if request.method == 'POST':
         form = UserCreationForm(request.POST)
         if form.is_valid():
@@ -51,7 +51,8 @@ def registerPage(request):
             login(request, user)
             return redirect('home')
         else:
-            messages.error(request, 'An error has occurred during registration')
+            messages.error(
+                request, 'An error has occurred during registration')
 
     context = {
         'form': form
@@ -62,25 +63,64 @@ def registerPage(request):
 
 def home(request):
     q = request.GET.get('q') if request.GET.get('q') != None else ''
-    rooms = Room.objects.filter(Q(topic__name__icontains=q) | Q(
-        name__icontains=q) | Q(description__icontains=q))
+
+    rooms = Room.objects.filter(
+        Q(topic__name__icontains=q) |
+        Q(name__icontains=q) |
+        Q(description__icontains=q)
+    )
+
     room_count = rooms.count()
     topics = Topic.objects.all()
+    room_messages = Message.objects.filter(
+        Q(user__username__icontains=q) |
+        Q(room__topic__name__icontains=q) |
+        Q(room__name__icontains=q) |
+        Q(body__icontains=q)
+    )[:5]
+
     context = {
         'rooms': rooms,
         'topics': topics,
-        'room_count': room_count
+        'room_count': room_count,
+        'room_messages': room_messages
     }
     return render(request, 'base/home.html', context)
 
 
 def room(request, pk):
     room = Room.objects.get(id=pk)
+    roomMessages = room.message_set.all().order_by('-created')
+    participants = room.participants.all()
+
+    if request.method == 'POST':
+        message = room.message_set.create(
+            user=request.user,
+            body=request.POST.get('body')
+        )
+        room.participants.add(request.user)
+        return redirect('room', pk=room.id)
+
     context = {
-        'room': room
+        'room': room,
+        'roomMessages': roomMessages,
+        'participants': participants
     }
     return render(request, 'base/room.html', context)
 
+def userProfile(request,pk):
+    user = User.objects.get(id=pk)
+    rooms = user.room_set.all()
+    room_messages = user.message_set.all()
+    topics = Topic.objects.all()
+
+    context = {
+        'user': user,
+        'rooms': rooms,
+        'room_messages': room_messages,
+        'topics': topics
+    }
+    return render(request, 'base/profile.html', context)
 
 @login_required(login_url='login')
 def createRoom(request):
@@ -122,4 +162,17 @@ def deleteRoom(request, pk):
         room.delete()
         return redirect('home')
     context = {'item': room}
+    return render(request, 'base/delete.html', context)
+
+
+def deleteMessage(request, pk):
+    message = Message.objects.get(id=pk)
+
+    if request.user != message.user:
+        return HttpResponse('You are not allowed here!')
+
+    if request.method == 'POST':
+        message.delete()
+        return redirect('home')
+    context = {'item': message}
     return render(request, 'base/delete.html', context)

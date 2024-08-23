@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import UserCreationForm
 from django.db.models import Q
 from .models import Room, Topic, Message
-from .forms import RoomForm
+from .forms import RoomForm, UserForm
 from django.contrib.auth import login, authenticate, logout
 from django.contrib import messages
 
@@ -108,7 +108,8 @@ def room(request, pk):
     }
     return render(request, 'base/room.html', context)
 
-def userProfile(request,pk):
+
+def userProfile(request, pk):
     user = User.objects.get(id=pk)
     rooms = user.room_set.all()
     room_messages = user.message_set.all()
@@ -121,6 +122,7 @@ def userProfile(request,pk):
         'topics': topics
     }
     return render(request, 'base/profile.html', context)
+
 
 @login_required(login_url='login')
 def createRoom(request):
@@ -136,7 +138,7 @@ def createRoom(request):
             description=request.POST.get('description')
         )
         return redirect('home')
-    
+
     context = {'form': form, 'topics': topics}
     return render(request, 'base/room_form.html', context)
 
@@ -163,7 +165,6 @@ def updateRoom(request, pk):
     return render(request, 'base/room_form.html', context)
 
 
-
 @login_required(login_url='login')
 def deleteRoom(request, pk):
     room = Room.objects.get(id=pk)
@@ -178,6 +179,7 @@ def deleteRoom(request, pk):
     return render(request, 'base/delete.html', context)
 
 
+@login_required(login_url='login')
 def deleteMessage(request, pk):
     message = Message.objects.get(id=pk)
 
@@ -189,3 +191,18 @@ def deleteMessage(request, pk):
         return redirect('home')
     context = {'item': message}
     return render(request, 'base/delete.html', context)
+
+
+@login_required(login_url='login')
+def updateUser(request, pk):
+    user = request.user
+    form = UserForm(instance=user)
+    if request.method == 'POST':
+        form = UserForm(request.POST, instance=user)
+        if form.is_valid():
+            form.save()
+            return redirect('user-profile', pk=user.id)
+    context = {
+        'form': form
+    }
+    return render(request, 'base/update_user.html', context)
